@@ -40,18 +40,71 @@ To submit your homework:
 
 
 """
+import re
+import traceback
+from functools import reduce
+
+def index():
+    """ Return a string with instructions on using the app """
+
+    page="""
+<h1>Instructions page</h1>
+<h3>You can add, subtract, multiply and divide numbers using this app. Here is how:</h3>
+<ul>
+<li>To add two numbers: add to this page's url '/add/number1/number2'.</li>
+<li>To subtract: add to this page's url '/subtract/number1/number2'.</li>
+<li>To multiply two numbers: add to this page's url '/multiply/number1/number2'.</li>
+<li>To divide a number by another: add to this page's url '/divide/number1/number2'.</li>
+</ul>
+<p>Example: To get the output for 2+3 ===> '/add/2/3'.<p/>
+"""
+    return page
 
 
 def add(*args):
     """ Returns a STRING with the sum of the arguments """
 
-    # TODO: Fill sum with the correct value, based on the
-    # args provided.
-    sum = "0"
-
-    return sum
+    # TODO: Fill sum with the correct value
+    page = """
+<h1>{result}</h1>    
+""".format(result = sum(args))
+    return page
 
 # TODO: Add functions for handling more arithmetic operations.
+def multiply(*args):
+    """ Return a STRING with the product of the arguments """
+
+    n = 1
+    for num in args:
+        n *= num
+    page = """
+<h1>{}</h1>
+""".format(n)
+    return page
+
+
+def divide(*args):
+    """ Return a string with the quotient of the arguments"""
+
+    try:
+        result = reduce((lambda x, y: x//y), args)
+    except ZeroDivisionError:
+        result = "Cannot divide by zero"
+    page = """
+<h1>{}</h1>
+""".format(result)
+    return page
+
+
+def subtract(*args):
+    """ Return a string with the difference between the arguments """
+
+    result = reduce((lambda x, y: x-y), args)
+    page = """
+<h1>{}</h1>
+""".format(result)
+    return page
+
 
 def resolve_path(path):
     """
@@ -62,23 +115,50 @@ def resolve_path(path):
     # TODO: Provide correct values for func and args. The
     # examples provide the correct *syntax*, but you should
     # determine the actual values of func and args using the
-    # path.
-    func = add
-    args = ['25', '32']
+    # path. ex.: path = http://localhost:8080/multiply/3/5
 
+    funcs = {
+        'add': add,
+        'multiply': multiply,
+        'divide': divide,
+        'subtract': subtract,
+        '': index,
+    }
+
+    path = path.strip('/').split('/') 
+    func_name = path.pop(0)
+    args = list(map(int, path))
+    try:
+        func = funcs[func_name] 
+    except KeyError:
+        raise NameError
     return func, args
-
+    
+    
 def application(environ, start_response):
-    # TODO: Your application code from the book database
-    # work here as well! Remember that your application must
-    # invoke start_response(status, headers) and also return
-    # the body of the response in BYTE encoding.
-    #
-    # TODO (bonus): Add error handling for a user attempting
-    # to divide by zero.
-    pass
+    
+    headers = [('Content-type', 'text/html')]
+    try:
+        path = environ.get('PATH_INFO', None)
+        if path is None:
+            raise NameError
+        func, args = resolve_path(path)
+        body = func(*args)
+        status = "200 OK"
+    except NameError:
+        status = "404 Not Found"
+        body = "<h1>Not Found</h1>"
+    except Exception:
+        status = "500 Internal Server Error"
+        body = "<h1>Internal Server Error</h1>"
+        print(traceback.format_exc())
+    finally:
+        headers.append(('Content-length', str(len(body))))
+        start_response(status, headers)
+        return [body.encode('utf8')]
 
 if __name__ == '__main__':
-    # TODO: Insert the same boilerplate wsgiref simple
-    # server creation that you used in the book database.
-    pass
+    from wsgiref.simple_server import make_server
+    srv = make_server('localhost', 8080, application)
+    srv.serve_forever()
+    
